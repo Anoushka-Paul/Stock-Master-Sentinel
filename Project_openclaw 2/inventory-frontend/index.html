@@ -593,7 +593,11 @@
         }
 
         // Initial load
-        updateDashboard();
+        if (!localStorage.getItem("ownerLoggedIn")) {
+            window.location.href = 'login.html';
+        } else {
+            updateDashboard();
+        }
         
         // Auto-refresh every 30 seconds
         setInterval(updateDashboard, 30000);

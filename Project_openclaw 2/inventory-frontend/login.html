@@ -71,6 +71,7 @@
                 }
                 status.textContent = 'Settings saved. Redirecting to dashboard...';
                 status.className = 'text-sm text-green-300';
+                localStorage.setItem("ownerLoggedIn", "true");
                 setTimeout(() => window.location.href = 'index.html', 900);
             } catch (error) {
                 status.textContent = 'Network error. Is backend running?';
