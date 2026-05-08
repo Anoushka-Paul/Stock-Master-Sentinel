@@ -21,6 +21,8 @@ public class Product {
     
     @Column(nullable = false)
     private Double price;
+
+    private Integer accountId;
     
     // Constructors
     public Product() {}
@@ -71,5 +73,13 @@ public class Product {
     
     public void setPrice(Double price) {
         this.price = price;
+    }
+
+    public Integer getAccountId() {
+        return accountId;
+    }
+
+    public void setAccountId(Integer accountId) {
+        this.accountId = accountId;
     }
 }

@@ -287,10 +287,28 @@
 
     <script>
         const API_URL = 'http://localhost:8080/api/inventory';
+
+        function accountId() {
+            return localStorage.getItem("accountId");
+        }
+
+        function apiHeaders(extra = {}) {
+            return {
+                ...extra,
+                'X-Account-Id': accountId()
+            };
+        }
+
+        function apiFetch(path, options = {}) {
+            return fetch(`${API_URL}${path}`, {
+                ...options,
+                headers: apiHeaders(options.headers || {})
+            });
+        }
         
         async function fetchProducts() {
             try {
-                const response = await fetch(`${API_URL}/products`);
+                const response = await apiFetch('/products');
                 if (!response.ok) throw new Error('API error');
                 return await response.json();
             } catch (error) {
@@ -303,7 +321,7 @@
 
         async function fetchLowStock() {
             try {
-                const response = await fetch(`${API_URL}/low-stock`);
+                const response = await apiFetch('/low-stock');
                 if (!response.ok) throw new Error('API error');
                 return await response.json();
             } catch (error) {
@@ -313,7 +331,7 @@
 
         async function fetchReasoningFeed() {
             try {
-                const response = await fetch(`${API_URL}/reasoning`);
+                const response = await apiFetch('/reasoning');
                 if (response.ok) {
                     const text = await response.text();
                     const lines = text.trim().split('\n').filter(line => line.trim());
@@ -387,7 +405,7 @@
             }
 
             try {
-                const response = await fetch(`${API_URL}/restock`, {
+                const response = await apiFetch('/restock', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -419,7 +437,7 @@
         async function simulateShortage() {
             updateCommandStatus('Simulating shortage...');
             try {
-                const response = await fetch(`${API_URL}/simulate-shortage`, { method: 'POST' });
+                const response = await apiFetch('/simulate-shortage', { method: 'POST' });
                 if (!response.ok) {
                     updateCommandStatus('Simulation failed.', true);
                     showToast('Shortage simulation failed.', 'error');
@@ -439,7 +457,7 @@
         async function triggerBIAnalysis() {
             updateCommandStatus('Triggering BI analysis...');
             try {
-                const response = await fetch(`${API_URL}/run-bi`, { method: 'POST' });
+                const response = await apiFetch('/run-bi', { method: 'POST' });
                 if (!response.ok) {
                     updateCommandStatus('BI analysis failed.', true);
                     showToast('BI analysis failed.', 'error');
@@ -458,7 +476,7 @@
         async function healthCheck() {
             updateCommandStatus('Performing health check...');
             try {
-                const response = await fetch(`${API_URL}/health`);
+                const response = await apiFetch('/health');
                 if (!response.ok) {
                     updateCommandStatus('Health check failed.', true);
                     showToast('Health check failed.', 'error');
@@ -498,7 +516,7 @@
             }
 
             try {
-                const response = await fetch(`${API_URL}/add`, {
+                const response = await apiFetch('/add', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -593,7 +611,7 @@
         }
 
         // Initial load
-        if (!localStorage.getItem("ownerLoggedIn")) {
+        if (!localStorage.getItem("ownerLoggedIn") || !accountId()) {
             window.location.href = 'login.html';
         } else {
             updateDashboard();

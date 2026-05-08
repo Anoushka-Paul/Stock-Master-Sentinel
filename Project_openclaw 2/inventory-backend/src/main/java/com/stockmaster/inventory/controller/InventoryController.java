@@ -2,6 +2,7 @@ package com.stockmaster.inventory.controller;
 
 import com.stockmaster.inventory.entity.Product;
 import com.stockmaster.inventory.repository.ProductRepository;
+import com.stockmaster.inventory.repository.SettingsRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,60 +35,67 @@ public class InventoryController {
     
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private SettingsRepository settingsRepository;
     
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private final List<String> recentAuditLogs = Collections.synchronizedList(new ArrayList<>());
 
     @GetMapping("/low-stock")
-    public ResponseEntity<List<Product>> getLowStockProducts() {
-        List<Product> lowStock = productRepository.findLowStockProducts();
+    public ResponseEntity<List<Product>> getLowStockProducts(@RequestHeader(value = "X-Account-Id", required = false) Integer accountId) {
+        List<Product> lowStock = productRepository.findLowStockProducts(resolveAccountId(accountId));
         return ResponseEntity.ok(lowStock);
     }
     
     @GetMapping("/products")
-    public ResponseEntity<List<Product>> getAllProducts() {
-        return ResponseEntity.ok(productRepository.findAll());
+    public ResponseEntity<List<Product>> getAllProducts(@RequestHeader(value = "X-Account-Id", required = false) Integer accountId) {
+        return ResponseEntity.ok(productRepository.findAllByAccountId(resolveAccountId(accountId)));
     }
     
     @GetMapping("/products/{id}")
-    public ResponseEntity<Product> getProductById(@PathVariable Integer id) {
-        return productRepository.findById(id)
+    public ResponseEntity<Product> getProductById(@RequestHeader(value = "X-Account-Id", required = false) Integer accountId, @PathVariable("id") Integer id) {
+        return productRepository.findByIdAndAccountId(id, resolveAccountId(accountId))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
     
     @PostMapping("/products")
-    public ResponseEntity<Product> createProduct(@RequestBody Product product) {
+    public ResponseEntity<Product> createProduct(@RequestHeader(value = "X-Account-Id", required = false) Integer accountId, @RequestBody Product product) {
+        product.setAccountId(resolveAccountId(accountId));
         return ResponseEntity.ok(productRepository.save(product));
     }
     
     @PutMapping("/products/{id}")
-    public ResponseEntity<Product> updateProduct(@PathVariable Integer id, @RequestBody Product product) {
-        return productRepository.findById(id)
+    public ResponseEntity<Product> updateProduct(@RequestHeader(value = "X-Account-Id", required = false) Integer accountId, @PathVariable("id") Integer id, @RequestBody Product product) {
+        Integer resolvedAccountId = resolveAccountId(accountId);
+        return productRepository.findByIdAndAccountId(id, resolvedAccountId)
                 .map(existing -> {
                     product.setId(id);
+                    product.setAccountId(resolvedAccountId);
                     return ResponseEntity.ok(productRepository.save(product));
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
     
     @DeleteMapping("/products/{id}")
-    public ResponseEntity<Void> deleteProduct(@PathVariable Integer id) {
-        if (productRepository.existsById(id)) {
-            productRepository.deleteById(id);
-            return ResponseEntity.ok().build();
-        }
-        return ResponseEntity.notFound().build();
+    public ResponseEntity<Void> deleteProduct(@RequestHeader(value = "X-Account-Id", required = false) Integer accountId, @PathVariable("id") Integer id) {
+        return productRepository.findByIdAndAccountId(id, resolveAccountId(accountId))
+                .map(product -> {
+                    productRepository.delete(product);
+                    return ResponseEntity.ok().<Void>build();
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
     
     @PostMapping("/restock")
-    public ResponseEntity<Product> restockProduct(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Product> restockProduct(@RequestHeader(value = "X-Account-Id", required = false) Integer accountId, @RequestBody Map<String, Object> request) {
         Integer productId = (Integer) request.get("productId");
         Integer quantity = (Integer) request.get("quantity");
         String commandText = Optional.ofNullable(request.get("commandText")).map(Object::toString).orElse("Restock command received");
         
-        return productRepository.findById(productId)
+        return productRepository.findByIdAndAccountId(productId, resolveAccountId(accountId))
                 .map(product -> {
                     product.setQuantity(product.getQuantity() + quantity);
                     Product updated = productRepository.save(product);
@@ -101,15 +109,16 @@ public class InventoryController {
     }
 
     @PostMapping("/add")
-    public ResponseEntity<Product> addProduct(@RequestBody Product product) {
+    public ResponseEntity<Product> addProduct(@RequestHeader(value = "X-Account-Id", required = false) Integer accountId, @RequestBody Product product) {
+        product.setAccountId(resolveAccountId(accountId));
         Product saved = productRepository.save(product);
         appendReasoningFeed("USER COMMAND: Add new item " + product.getName());
         return ResponseEntity.ok(saved);
     }
 
     @PostMapping("/simulate-shortage")
-    public ResponseEntity<Product> simulateShortage() {
-        List<Product> products = productRepository.findAll();
+    public ResponseEntity<Product> simulateShortage(@RequestHeader(value = "X-Account-Id", required = false) Integer accountId) {
+        List<Product> products = productRepository.findAllByAccountId(resolveAccountId(accountId));
         if (products.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -179,11 +188,22 @@ public class InventoryController {
 
     @GetMapping("/agent/context")
     public ResponseEntity<Map<String, Object>> getAgentContext() {
-        List<Product> lowStock = productRepository.findLowStockProducts();
+        Integer accountId = resolveAccountId(null);
+        List<Product> lowStock = productRepository.findLowStockProducts(accountId);
         return ResponseEntity.ok(Map.of(
+                "accountId", accountId,
                 "lowStock", lowStock,
                 "auditLogs", new ArrayList<>(recentAuditLogs)
         ));
+    }
+
+    private Integer resolveAccountId(Integer accountId) {
+        if (accountId != null) {
+            return accountId;
+        }
+        return settingsRepository.findTopByOrderByCreatedAtDesc()
+                .map(settings -> settings.getId())
+                .orElse(1);
     }
     
     private void logAudit(Integer productId, String action, Integer quantity) {

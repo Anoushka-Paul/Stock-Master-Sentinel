@@ -19,6 +19,14 @@
 
         <div class="grid gap-6">
             <div>
+                <label class="block text-sm font-medium text-slate-300">Username</label>
+                <input id="username" type="text" placeholder="roopin" class="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-300">Password</label>
+                <input id="password" type="password" placeholder="Choose or enter your password" class="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none" />
+            </div>
+            <div>
                 <label class="block text-sm font-medium text-slate-300">Store Name</label>
                 <input id="storeName" type="text" placeholder="Roopin's Coffee Shop" class="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none" />
             </div>
@@ -39,7 +47,10 @@
                 <input id="channelId" type="text" placeholder="+1234567890, Discord webhook, or Telegram chat ID" class="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none" />
             </div>
             <div class="flex items-center justify-between gap-4">
-                <button onclick="saveSettings()" class="rounded-2xl bg-cyan-500 px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-cyan-400 transition">Save & Launch</button>
+                <div class="flex gap-3">
+                    <button onclick="signup()" class="rounded-2xl bg-cyan-500 px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-cyan-400 transition">Create & Launch</button>
+                    <button onclick="login()" class="rounded-2xl border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 hover:bg-slate-800 transition">Login</button>
+                </div>
                 <span id="statusMessage" class="text-sm text-slate-400"></span>
             </div>
         </div>
@@ -61,34 +72,78 @@
             }
         });
 
-        async function saveSettings() {
+        function saveSession(account) {
+            localStorage.setItem("ownerLoggedIn", "true");
+            localStorage.setItem("accountId", account.id);
+            localStorage.setItem("accountName", account.storeName || account.username || "Store");
+        }
+
+        async function signup() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
             const storeName = document.getElementById('storeName').value.trim();
             const ownerName = document.getElementById('ownerName').value.trim();
             const channel = channelSelect.value;
             const channelId = channelIdInput.value.trim();
 
             const status = document.getElementById('statusMessage');
-            if (!storeName || !ownerName || !channelId) {
-                status.textContent = 'Please complete all fields.';
+            if (!username || !password || !storeName || !ownerName || !channelId) {
+                status.textContent = 'Please complete all signup fields.';
                 status.className = 'text-sm text-red-300';
                 return;
             }
 
             try {
-                const response = await fetch('http://localhost:8080/api/settings', {
+                const response = await fetch('http://localhost:8080/api/auth/signup', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ storeName, ownerName, channel, channelId })
+                    body: JSON.stringify({ username, password, storeName, ownerName, channel, channelId })
                 });
                 if (!response.ok) {
-                    status.textContent = 'Unable to save settings. Check backend.';
+                    const error = await response.json().catch(() => ({}));
+                    status.textContent = error.error || 'Unable to create account.';
                     status.className = 'text-sm text-red-300';
                     return;
                 }
-                status.textContent = 'Settings saved. Redirecting to dashboard...';
+                const account = await response.json();
+                saveSession(account);
+                status.textContent = 'Account created. Redirecting to dashboard...';
                 status.className = 'text-sm text-green-300';
-                localStorage.setItem("ownerLoggedIn", "true");
                 setTimeout(() => window.location.href = 'index.html', 900);
+            } catch (error) {
+                status.textContent = 'Network error. Is backend running?';
+                status.className = 'text-sm text-red-300';
+                console.error(error);
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const status = document.getElementById('statusMessage');
+
+            if (!username || !password) {
+                status.textContent = 'Enter username and password.';
+                status.className = 'text-sm text-red-300';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:8080/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                if (!response.ok) {
+                    status.textContent = 'Invalid username or password.';
+                    status.className = 'text-sm text-red-300';
+                    return;
+                }
+                const account = await response.json();
+                saveSession(account);
+                status.textContent = 'Logged in. Redirecting to dashboard...';
+                status.className = 'text-sm text-green-300';
+                setTimeout(() => window.location.href = 'index.html', 700);
             } catch (error) {
                 status.textContent = 'Network error. Is backend running?';
                 status.className = 'text-sm text-red-300';

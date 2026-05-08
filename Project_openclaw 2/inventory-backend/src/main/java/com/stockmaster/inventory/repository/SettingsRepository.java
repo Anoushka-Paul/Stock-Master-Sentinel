@@ -9,4 +9,7 @@ import java.util.Optional;
 @Repository
 public interface SettingsRepository extends JpaRepository<Settings, Integer> {
     Optional<Settings> findTopByOrderByIdAsc();
+    Optional<Settings> findTopByOrderByCreatedAtDesc();
+    Optional<Settings> findByUsername(String username);
+    boolean existsByUsername(String username);
 }

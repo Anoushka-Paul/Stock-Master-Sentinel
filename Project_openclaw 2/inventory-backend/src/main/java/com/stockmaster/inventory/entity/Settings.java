@@ -1,10 +1,11 @@
 package com.stockmaster.inventory.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "store_settings")
+@Table(name = "store_settings", uniqueConstraints = @UniqueConstraint(columnNames = "username"))
 public class Settings {
 
     @Id
@@ -22,6 +23,12 @@ public class Settings {
 
     @Column(nullable = false, length = 500)
     private String channelId;
+
+    @Column(unique = true)
+    private String username;
+
+    @JsonIgnore
+    private String passwordHash;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
@@ -68,6 +75,22 @@ public class Settings {
 
     public void setChannelId(String channelId) {
         this.channelId = channelId;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 
     public LocalDateTime getCreatedAt() {
